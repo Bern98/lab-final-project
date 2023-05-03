@@ -21,7 +21,7 @@ d ./provadir/provadir2/provadir3
 - ./provadir/provadir2/provadir3/provadir3-3.dat
 Vogliamo ottenere un output tabellare come il seguente:
 n avg std file
---------------------------------------------------------------------------
+---
 3 3.00 .81 ./prova1.dat
 7 30.71 29.81 ./provadir/provadir2/provadir3/provadir3-3.dat
 7 30.71 29.81 ./provadir/provadir2/provadir2-1.dat
