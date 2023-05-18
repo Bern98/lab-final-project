@@ -1,7 +1,7 @@
 
 CC=gcc
 CFLAGS=-g -Wall -pedantic 
-LDLIBS=
+LDLIBS= -lm
 
 # eseguibile da compilare
 MAIN=main
@@ -12,11 +12,12 @@ $(MAIN): $(MAIN).o functions.c
 
 # target che cancella eseguibili e file oggetto
 clean:
-	rm -f $(MAIN) *.o 
+	rm -f $(MAIN) *.o
 
 # target che esegue test 1
 test1: $(MAIN)
-	./$(MAIN) 
+	./$(MAIN) 3 dirs
+	@echo ran with 3 threads
 
 # target che esegue test 2
 test2: $(MAIN)
