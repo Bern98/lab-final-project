@@ -17,6 +17,7 @@ struct sockaddr_un sa = {
 	.sun_family = AF_UNIX,
 	.sun_path = SOCKNAME,
 };
+
 int main(int argc, char **argv)
 {
 	unlink(SOCKNAME);

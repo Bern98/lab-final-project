@@ -32,6 +32,7 @@ n avg std file
 5 32.00 3.08 ./provadir/provadir2/provadir2-2.dat
 13 18.92 10.57 ./provadir/provadir2/provadir3/provadir3-1.dat
 6 50.83 67.58 ./provadir/provadir2/provadir3/provadir3-2.dat
+
 Dove 'n' è il totale dei numeri validi nel file considerati per il calcolo, 'avg' è la media aritmetica, 'std' è la deviazione standard, e 'file' è il nome del file considerato. Nel Riquadro1 è mostrato il contenuto del file provadir.dat contenuto nella directory provadir, avente n=8 righe valide (su un totale di 11), una media aritmetica pari a avg=178.59 ed una deviazione standard pari a std=402.10.
 Si chiede di realizzare programma scritto in C che utilizzi due processi e che produca l'output descritto sopra. La struttura del programma deve seguire lo schema della figura:
 Riquadro1:
