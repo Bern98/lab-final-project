@@ -24,14 +24,21 @@ Vogliamo ottenere un output tabellare come il seguente:
 **n avg std file**
 
 3 3.00 .81 ./prova1.dat
+
 7 30.71 29.81 ./provadir/provadir2/provadir3/provadir3-3.dat
 
 7 30.71 29.81 ./provadir/provadir2/provadir2-1.dat
+
 13 4.61 2.55 ./provadir/provadir1/provadir1.dat
+
 1 1.00 0 ./prova2.dat
+
 8 178.59 402.10 ./provadir/provadir.dat
+
 5 32.00 3.08 ./provadir/provadir2/provadir2-2.dat
+
 13 18.92 10.57 ./provadir/provadir2/provadir3/provadir3-1.dat
+
 6 50.83 67.58 ./provadir/provadir2/provadir3/provadir3-2.dat
 
 Dove 'n' è il totale dei numeri validi nel file considerati per il calcolo, 'avg' è la media aritmetica, 'std' è la deviazione standard, e 'file' è il nome del file considerato. Nel Riquadro1 è mostrato il contenuto del file provadir.dat contenuto nella directory provadir, avente n=8 righe valide (su un totale di 11), una media aritmetica pari a avg=178.59 ed una deviazione standard pari a std=402.10.
