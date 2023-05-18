@@ -34,7 +34,7 @@ typedef struct
 	int n;
 	double avg;
 	double std;
-	char filename[200 + 1];
+	char* filename;
 } WorkerResults;
 
 void init_queue(Queue* q);

@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "cppdbg",
+            "name": "main",
+            "request": "launch",
+            "program": "${workspaceRoot}/main",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "3",
+                "$HOME"
+            ]
+        }
+    ]
+}

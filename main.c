@@ -12,15 +12,14 @@
 #include <fcntl.h>
 #include "functions.h"
 
+int fileDescriptorSocket, connectionSocketFileDescriptor;
+struct sockaddr_un sa = {
+	.sun_family = AF_UNIX,
+	.sun_path = SOCKNAME,
+};
 int main(int argc, char **argv)
 {
-	int fileDescriptorSocket, connectionSocketFileDescriptor;
 	unlink(SOCKNAME);
-	struct sockaddr_un sa = {
-		.sun_family = AF_UNIX,
-		.sun_path = SOCKNAME,
-	};
-
 	char buf[N];
 
 	if (fork() != 0) //* Padre Server
@@ -39,20 +38,23 @@ int main(int argc, char **argv)
 		if (argc < 3)
 			return EXIT_FAILURE;
 
+		ERROR_CHECK("chdr", chdir(dirname), -1);
+
 		pthread_t mainT, threads_array[n_of_threads];
 		ThreadArgs ThreadArgs;
 		ThreadArgs.dirname = malloc(sizeof(char) * 100);
 		strcpy(ThreadArgs.dirname, dirname);
-		ThreadArgs.queue = malloc(sizeof(Queue));
 		ThreadArgs.n_of_threads = n_of_threads;
+
+		ThreadArgs.queue = malloc(sizeof(Queue));
 		init_queue(ThreadArgs.queue);
-		
+
 		if (pthread_create(&mainT, NULL, &mainThreadFunction, &ThreadArgs) != 0)
 		{
 			perror("main pthread_create");
 			exit(EXIT_FAILURE);
 		}
-		
+
 		for (int i = 0; i < n_of_threads; i++)
 		{
 			if (pthread_create(&threads_array[i], NULL, &workerThreadPrint, &ThreadArgs) != 0)
@@ -60,7 +62,7 @@ int main(int argc, char **argv)
 				perror("pthread_create");
 				exit(EXIT_FAILURE);
 			}
-			printf("thread %d creato\n", i + 1);
+			// printf("thread %d creato\n", i + 1);
 		}
 
 		if (pthread_join(mainT, NULL) != 0)
@@ -76,7 +78,7 @@ int main(int argc, char **argv)
 				perror("pthread_join");
 				exit(EXIT_FAILURE);
 			}
-			printf("thread %d terminato\n", i + 1);
+			// printf("thread %d terminato\n", i + 1);
 		}
 		queue_destroy(ThreadArgs.queue);
 
@@ -103,7 +105,7 @@ int main(int argc, char **argv)
 		}
 		write(fileDescriptorSocket, "Hallo !", 7);
 		read(fileDescriptorSocket, buf, N);
-		//fprintf(stderr, "Client got: %s\n", buf);
+		// fprintf(stderr, "Client got: %s\n", buf);
 		close(fileDescriptorSocket);
 		exit(EXIT_SUCCESS);
 	}

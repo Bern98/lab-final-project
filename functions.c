@@ -8,6 +8,8 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <errno.h>
+#include <limits.h>
 #include "functions.h"
 
 void init_queue(Queue *q)
@@ -74,48 +76,47 @@ void *pop(Queue *q)
 	return data;
 }
 
+char *getExtension(char *filename)
+{
+	char *s = strstr(filename, ".dat");
+	if(s == NULL) return "\0";
+	return s;
+}
+
 void recursiveUnfoldAndPush(char *dirPath, Queue *q)
 {
-	DIR *dir = opendir(dirPath);
-	if (dir == NULL)
+	DIR *dir;
+	if ((dir = opendir(dirPath)) == NULL)
 	{
 		perror("Error opening directory.\n");
-		return;
+		exit(1);
 	}
 
 	struct dirent *entry;
 	while ((entry = readdir(dir)) != NULL)
 	{
 		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-		{
 			continue;
-		}
 
-		char entryPath[1024];
+		char entryPath[1000];
 		snprintf(entryPath, sizeof(entryPath), "%s/%s", dirPath, entry->d_name);
 
-		struct stat entryStat;
-		if (lstat(entryPath, &entryStat) == -1)
+		if (entryPath == NULL)
+			exit(1);
+		if (entry->d_type == 4) // DIR
 		{
-			perror("Error getting file status.\n");
-			continue;
-		}
-
-		if (S_ISDIR(entryStat.st_mode))
-		{
+			// ERROR_CHECK("chdr", chdir(dirPath), -1);
 			recursiveUnfoldAndPush(entryPath, q);
+			// ERROR_CHECK("chdr", chdir(".."), -1);
 		}
-		else if (S_ISREG(entryStat.st_mode))
+		else
 		{
-			push((void *)entryPath, q);
+			if (entry->d_type == 8 && strcmp(getExtension(entry->d_name), ".dat") == 0) // REG
+				push(strdup(entryPath), q);
 		}
 	}
 
-	if (closedir(dir) == -1)
-	{
-		perror("Error closing directory.\n");
-		return;
-	}
+	ERROR_CHECK("closedir", closedir(dir), -1);
 }
 
 void readAndCalc(char *filename, WorkerResults *resultsStruct)
@@ -124,7 +125,7 @@ void readAndCalc(char *filename, WorkerResults *resultsStruct)
 	double sum = 0, sumSq = 0, avg, variance, std;
 	char *data, *token;
 	FILE *fp;
-	//printf("f:%s\n", filename);
+	// printf("f:%s\n", filename);
 	fp = fopen(filename, "r");
 
 	if (fp == NULL)
@@ -173,12 +174,13 @@ void readAndCalc(char *filename, WorkerResults *resultsStruct)
 void *mainThreadFunction(void *args)
 {
 	ThreadArgs *Args = (ThreadArgs *)args;
-	char *dirname = Args->dirname;
 	Queue *q = Args->queue;
 	int n_of_threads = Args->n_of_threads;
-	recursiveUnfoldAndPush(dirname, q);
+
+	recursiveUnfoldAndPush(".", q);
 	for (int i = 0; i < n_of_threads; i++)
 		push((void *)STOP, q);
+
 	pthread_exit(NULL);
 }
 
@@ -186,16 +188,20 @@ void *workerThreadPrint(void *args)
 {
 	ThreadArgs *Args = (ThreadArgs *)args;
 	Queue *q = Args->queue;
-	char* poppedDatum = malloc(sizeof(char)*200);
 	WorkerResults workerResults;
-	
+	workerResults.filename = malloc(sizeof(char) * 150);
 	while (1)
 	{
-		poppedDatum = (char*)pop(q);
-		if (poppedDatum == NULL || strcmp(poppedDatum, STOP) == 0) break;
-		else printf("[%ld]: %s\n", (long)pthread_self() ,poppedDatum);
+		char *poppedDatum = (char *)pop(q);
+		if (poppedDatum == NULL || strcmp(poppedDatum, STOP) == 0)
+			break;
+		else
+			readAndCalc(poppedDatum, &workerResults);
+		// printf("[%ld]: %s\n", (long)pthread_self(), poppedDatum);
 
+		
 		//printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
+		free(poppedDatum);
 	}
 
 	pthread_exit(NULL);
