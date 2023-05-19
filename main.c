@@ -12,26 +12,18 @@
 #include <fcntl.h>
 #include "functions.h"
 
-int fileDescriptorSocket, connectionSocketFileDescriptor;
-struct sockaddr_un sa = {
-	.sun_family = AF_UNIX,
-	.sun_path = SOCKNAME,
-};
-
 int main(int argc, char **argv)
 {
-	unlink(SOCKNAME);
+	int fileDescriptorSocket, connectionSocketFileDescriptor;
+	struct sockaddr_un sa = {
+		.sun_family = AF_UNIX,
+		.sun_path = SOCKNAME,
+	};
 	char buf[N];
+	createSockConnection(&fileDescriptorSocket, &connectionSocketFileDescriptor, &sa);
 
 	if (fork() != 0) //* Padre Server
 	{
-		fileDescriptorSocket = socket(AF_UNIX, SOCK_STREAM, 0);
-		ERROR_CHECK("bind", bind(fileDescriptorSocket, (struct sockaddr *)&sa, sizeof(sa)), -1);
-		ERROR_CHECK("listen", listen(fileDescriptorSocket, SOMAXCONN), -1);
-		printf("Waiting for client connection...\n");
-		connectionSocketFileDescriptor = accept(fileDescriptorSocket, NULL, 0);
-		ERROR_CHECK("accept", connectionSocketFileDescriptor, -1);
-		printf("Accepted a client connection.\n");
 		//*-------------------------
 
 		int n_of_threads = atoi(argv[1]);
@@ -49,6 +41,9 @@ int main(int argc, char **argv)
 
 		ThreadArgs.queue = malloc(sizeof(Queue));
 		init_queue(ThreadArgs.queue);
+
+		ThreadArgs.fileDescriptorSocket = &fileDescriptorSocket;
+		ThreadArgs.connectionSocketFileDescriptor = &connectionSocketFileDescriptor;
 
 		if (pthread_create(&mainT, NULL, &mainThreadFunction, &ThreadArgs) != 0)
 		{

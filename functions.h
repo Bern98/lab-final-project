@@ -1,6 +1,6 @@
 
 #define UNIX_PATH_MAX 108
-#define SOCKNAME "./mysock"
+#define SOCKNAME "./myso"
 #define N 100
 #define ERROR_CHECK(msg, func, ret) \
 	if (func == ret)            \
@@ -27,6 +27,8 @@ typedef struct {
 	Queue *queue;
 	char* dirname;
 	int n_of_threads;
+	int *fileDescriptorSocket;
+	int *connectionSocketFileDescriptor;
 } ThreadArgs;
 
 typedef struct
@@ -52,3 +54,5 @@ void recursiveUnfoldAndPush(char*, Queue*);
 void* mainThreadFunction(void*);
 
 void* workerThreadPrint(void*);
+
+void createSockConnection(int*, int*, void*);

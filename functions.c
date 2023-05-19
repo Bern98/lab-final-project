@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <limits.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include "functions.h"
 
 void init_queue(Queue *q)
@@ -76,10 +78,27 @@ void *pop(Queue *q)
 	return data;
 }
 
+void createSockConnection(int *fileDescriptorSocket, int *connectionSocketFileDescriptor, void *sa)
+{
+	unlink(SOCKNAME);
+	*fileDescriptorSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+	ERROR_CHECK("bind", bind(*fileDescriptorSocket, (struct sockaddr *)sa, sizeof(sa)), -1);
+}
+
+void sendToSocket(int *fileDescriptorSocket, int *connectionSocketFileDescriptor, long TID)
+{
+	ERROR_CHECK("listen", listen(*fileDescriptorSocket, SOMAXCONN), -1);
+	printf("[%ld]:Waiting for client connection...\n", TID);
+	*connectionSocketFileDescriptor = accept(*fileDescriptorSocket, NULL, 0);
+	ERROR_CHECK("accept", *connectionSocketFileDescriptor, -1);
+	printf("[%ld]:Accepted a client connection.\n", TID);
+}
+
 char *getExtension(char *filename)
 {
 	char *s = strstr(filename, ".dat");
-	if(s == NULL) return "\0";
+	if (s == NULL)
+		return "\0";
 	return s;
 }
 
@@ -188,6 +207,8 @@ void *workerThreadPrint(void *args)
 {
 	ThreadArgs *Args = (ThreadArgs *)args;
 	Queue *q = Args->queue;
+	int *fileDescriptorSocket = Args->fileDescriptorSocket;
+	int *connectionSocketFileDescriptor = Args->connectionSocketFileDescriptor;
 	WorkerResults workerResults;
 	workerResults.filename = malloc(sizeof(char) * 150);
 	while (1)
@@ -195,12 +216,13 @@ void *workerThreadPrint(void *args)
 		char *poppedDatum = (char *)pop(q);
 		if (poppedDatum == NULL || strcmp(poppedDatum, STOP) == 0)
 			break;
-		else
+		else{
 			readAndCalc(poppedDatum, &workerResults);
+			sendToSocket(fileDescriptorSocket, connectionSocketFileDescriptor, pthread_self());
+			}
 		// printf("[%ld]: %s\n", (long)pthread_self(), poppedDatum);
 
-		
-		//printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
+		// printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
 		free(poppedDatum);
 	}
 
