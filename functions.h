@@ -3,32 +3,35 @@
 #define SOCKNAME "./myso"
 #define N 100
 #define ERROR_CHECK(msg, func, ret) \
-	if (func == ret)            \
-	{                          \
-		perror(msg);           \
-		exit(EXIT_FAILURE);    \
+	if (func == ret)                \
+	{                               \
+		perror(msg);                \
+		exit(EXIT_FAILURE);         \
 	}
 #define STOP "STOP"
 
-
-typedef struct n{
-    void* data;
-    struct n* next;
+typedef struct n
+{
+	void *data;
+	struct n *next;
 } Node;
 
-typedef struct{
-    Node* head;
-    Node* tail;
-    pthread_mutex_t mtx;
+typedef struct
+{
+	Node *head;
+	Node *tail;
+	pthread_mutex_t mtx;
 	pthread_cond_t cond;
 } Queue;
 
-typedef struct {
+typedef struct
+{
 	Queue *queue;
-	char* dirname;
+	char *dirname;
 	int n_of_threads;
 	int *fileDescriptorSocket;
 	int *connectionSocketFileDescriptor;
+	void *sa;
 } ThreadArgs;
 
 typedef struct
@@ -36,23 +39,27 @@ typedef struct
 	int n;
 	double avg;
 	double std;
-	char* filename;
+	char *filename;
 } WorkerResults;
 
-void init_queue(Queue* q);
+void init_queue(Queue *q);
 
-void queue_destroy(Queue* q);
+void queue_destroy(Queue *q);
 
-void push(void* data, Queue* q);
+void push(void *data, Queue *q);
 
-void* pop(Queue* q);
+void *pop(Queue *q);
 
 void readAndCalc(char *filename, WorkerResults *resultsStruct);
 
-void recursiveUnfoldAndPush(char*, Queue*);
+void recursiveUnfoldAndPush(char *, Queue *);
 
-void* mainThreadFunction(void*);
+void *mainThreadFunction(void *);
 
-void* workerThreadPrint(void*);
+void *workerThreadPrint(void *);
 
-void createSockConnection(int*, int*, void*);
+void createSockConnection(int *, void *);
+
+void recieveFromThread_Socket(int *, int *);
+
+void sendToCollector_Socket(int *, int *, void *, WorkerResults, long);

@@ -12,17 +12,17 @@
 #include <fcntl.h>
 #include "functions.h"
 
+static int fileDescriptorSocket, connectionSocketFileDescriptor;
+static struct sockaddr_un sa = {
+	.sun_family = AF_UNIX,
+	.sun_path = SOCKNAME,
+};
+
 int main(int argc, char **argv)
 {
-	int fileDescriptorSocket, connectionSocketFileDescriptor;
-	struct sockaddr_un sa = {
-		.sun_family = AF_UNIX,
-		.sun_path = SOCKNAME,
-	};
-	char buf[N];
-	createSockConnection(&fileDescriptorSocket, &connectionSocketFileDescriptor, &sa);
+	createSockConnection(&fileDescriptorSocket, &sa);
 
-	if (fork() != 0) //* Padre Server
+	if (fork() != 0) //* Processo con Main Thread e Worker Threads Client
 	{
 		//*-------------------------
 
@@ -31,7 +31,7 @@ int main(int argc, char **argv)
 		if (argc < 3)
 			return EXIT_FAILURE;
 
-		ERROR_CHECK("chdr", chdir(dirname), -1);
+		ERROR_CHECK("chdr", chdir(dirname), -1); // Bash cd per camibare directory durante lo scan
 
 		pthread_t mainT, threads_array[n_of_threads];
 		ThreadArgs ThreadArgs;
@@ -44,6 +44,7 @@ int main(int argc, char **argv)
 
 		ThreadArgs.fileDescriptorSocket = &fileDescriptorSocket;
 		ThreadArgs.connectionSocketFileDescriptor = &connectionSocketFileDescriptor;
+		ThreadArgs.sa = &sa;
 
 		if (pthread_create(&mainT, NULL, &mainThreadFunction, &ThreadArgs) != 0)
 		{
@@ -79,32 +80,20 @@ int main(int argc, char **argv)
 		queue_destroy(ThreadArgs.queue);
 
 		//*-------------------------
-		read(connectionSocketFileDescriptor, buf, N);
-		fprintf(stderr, "Server got: %s\n", buf);
-		write(connectionSocketFileDescriptor, "Bye !", 5);
-		close(fileDescriptorSocket);
-		close(connectionSocketFileDescriptor);
+
 		exit(EXIT_SUCCESS);
 	}
 	else
-	{ /* figlio, client */
-		fileDescriptorSocket = socket(AF_UNIX, SOCK_STREAM, 0);
-		while (connect(fileDescriptorSocket, (struct sockaddr *)&sa, sizeof(sa)) == -1)
-		{
-			if (errno == ENOENT || errno == ECONNREFUSED)
-				sleep(1); /* sock non esiste o connessione rifiutata */
-			else
-			{
-				perror("connect");
-				exit(EXIT_FAILURE);
-			}
-		}
+	{ /* Collector Server */
+		recieveFromThread_Socket(&fileDescriptorSocket, &connectionSocketFileDescriptor);
+
+		/*recieveFromThread_Socket(&fileDescriptorSocket, &connectionSocketFileDescriptor);
 		write(fileDescriptorSocket, "Hallo !", 7);
 		read(fileDescriptorSocket, buf, N);
 		// fprintf(stderr, "Client got: %s\n", buf);
-		close(fileDescriptorSocket);
+		close(fileDescriptorSocket);*/
 		exit(EXIT_SUCCESS);
 	}
-	free(buf);
+	// free(buf);
 	return 0;
 }

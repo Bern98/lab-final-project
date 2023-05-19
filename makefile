@@ -26,5 +26,6 @@ test1: $(MAIN)
 
 # target che esegue test 2
 test2: $(MAIN)
-	./$(MAIN) >> output.txt
+	./$(MAIN) 30 dirs
+	@echo ran with 30 threads
 

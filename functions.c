@@ -78,20 +78,56 @@ void *pop(Queue *q)
 	return data;
 }
 
-void createSockConnection(int *fileDescriptorSocket, int *connectionSocketFileDescriptor, void *sa)
+void createSockConnection(int *fileDescriptorSocket, void *sa)
 {
 	unlink(SOCKNAME);
 	*fileDescriptorSocket = socket(AF_UNIX, SOCK_STREAM, 0);
 	ERROR_CHECK("bind", bind(*fileDescriptorSocket, (struct sockaddr *)sa, sizeof(sa)), -1);
 }
 
-void sendToSocket(int *fileDescriptorSocket, int *connectionSocketFileDescriptor, long TID)
+void recieveFromThread_Socket(int *fileDescriptorSocket, int *connectionSocketFileDescriptor) // Collector Function, Server
 {
+	char buf[N];
 	ERROR_CHECK("listen", listen(*fileDescriptorSocket, SOMAXCONN), -1);
-	printf("[%ld]:Waiting for client connection...\n", TID);
-	*connectionSocketFileDescriptor = accept(*fileDescriptorSocket, NULL, 0);
+	printf("Waiting for client connection...\n");
+	*connectionSocketFileDescriptor = accept(*fileDescriptorSocket, NULL, NULL);
 	ERROR_CHECK("accept", *connectionSocketFileDescriptor, -1);
-	printf("[%ld]:Accepted a client connection.\n", TID);
+	printf("Accepted a client connection.\n");
+	read(*connectionSocketFileDescriptor, buf, N);
+	fprintf(stderr, "Server got: %s\n", buf);
+	write(*connectionSocketFileDescriptor, "Bye !", 5);
+	close(*fileDescriptorSocket);
+	close(*connectionSocketFileDescriptor);
+	exit(EXIT_SUCCESS);
+	return;
+}
+
+void sendToCollector_Socket(int *fileDescriptorSocket, int *connectionSocketFileDescriptor, void *sa, WorkerResults workerResults, long TID) // Worker Function, Client
+{
+	*fileDescriptorSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+	char buf[N];
+	while (connect(*fileDescriptorSocket, (struct sockaddr *)sa, sizeof(sa)) == -1)
+	{
+		if (errno == ENOENT || errno == ECONNREFUSED)
+		{
+			printf("Client connecting...\n");
+			sleep(3);
+		}
+		else
+		{
+			perror("connect");
+			exit(EXIT_FAILURE);
+		}
+	}
+	write(*fileDescriptorSocket, "Hallo !", 7);
+	read(*fileDescriptorSocket, buf, N);
+	fprintf(stderr, "Client got: %s\n", buf);
+	close(*fileDescriptorSocket);
+	exit(EXIT_SUCCESS);
+
+	printf("[%ld]:Worker connected.\n", TID);
+
+	return;
 }
 
 char *getExtension(char *filename)
@@ -209,6 +245,7 @@ void *workerThreadPrint(void *args)
 	Queue *q = Args->queue;
 	int *fileDescriptorSocket = Args->fileDescriptorSocket;
 	int *connectionSocketFileDescriptor = Args->connectionSocketFileDescriptor;
+	struct sockaddr_un *sa = Args->sa;
 	WorkerResults workerResults;
 	workerResults.filename = malloc(sizeof(char) * 150);
 	while (1)
@@ -216,10 +253,8 @@ void *workerThreadPrint(void *args)
 		char *poppedDatum = (char *)pop(q);
 		if (poppedDatum == NULL || strcmp(poppedDatum, STOP) == 0)
 			break;
-		else{
-			readAndCalc(poppedDatum, &workerResults);
-			sendToSocket(fileDescriptorSocket, connectionSocketFileDescriptor, pthread_self());
-			}
+		else
+			sendToCollector_Socket(fileDescriptorSocket, connectionSocketFileDescriptor, (struct sockaddr *)sa, workerResults, pthread_self());
 		// printf("[%ld]: %s\n", (long)pthread_self(), poppedDatum);
 
 		// printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
