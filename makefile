@@ -8,11 +8,12 @@ MAIN=main
 
 all: $(MAIN)
 
-$(MAIN): $(MAIN).o functions.o
+$(MAIN): $(MAIN).o unboundedqueue.o files.o
 	$(CC) $(CFLAGS) $^ -o $@ -pthread -lm
 
-$(MAIN).o: main.c functions.h
-functions.o: functions.c functions.h
+$(MAIN).o: main.c unboundedqueue.h files.h
+unboundedqueue.o: unboundedqueue.c unboundedqueue.h
+files.o: files.c files.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # target che cancella eseguibili e file oggetto
