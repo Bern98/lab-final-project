@@ -12,9 +12,9 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <math.h>
+#include "unboundedqueue.h"
 #include "errmsg.h"
 #include "sfiles.h"
-#include "unboundedqueue.h"
 
 #define STOP "STOP"
 #define N 100
@@ -129,7 +129,7 @@ void recursive_unfold_and_push(char *dirPath, Queue *q)
 			recursive_unfold_and_push(entryPath, q);
 		else
 		{
-			if (entry->d_type == 8 && strcmp(getExtension(entry->d_name), ".dat") == 0) // REG
+			if (entry->d_type == 8 && strcmp(get_file_extension(entry->d_name), ".dat") == 0) // REG
 				push(strdup(entryPath), q);
 		}
 	}
@@ -212,11 +212,14 @@ void *worker_thread_function(void *args)
 		char *poppedDatum = (char *)pop(q);
 		if (poppedDatum == NULL || strcmp(poppedDatum, STOP) == 0)
 			break;
-		else
+		else{
 			read_and_calculate(poppedDatum, &workerResults);
+			
+		}
+
+		//printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
 		// printf("[%ld]: %s\n", (long)pthread_self(), poppedDatum);
 
-		// printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
 		free(poppedDatum);
 	}
 
