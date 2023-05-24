@@ -23,9 +23,10 @@ clean:
 
 # target che esegue test 1
 test1: $(MAIN)
-	./$(MAIN) 3 dirs
-	@echo ran with 3 threads
+	./$(MAIN) 1 dirs
+	@echo ran with 1 threads
 
 # target che esegue test 2
 test2: $(MAIN)
-	./$(MAIN) >> output.txt
+	./$(MAIN) 3 dirs
+	@echo ran with 3 threads

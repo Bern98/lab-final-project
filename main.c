@@ -18,6 +18,7 @@
 
 #define STOP "STOP"
 #define N 100
+#define SOCKET_IP "127.0.0.1"
 
 typedef struct
 {
@@ -34,23 +35,41 @@ typedef struct
 	char *filename;
 } WorkerResults;
 
+struct sockaddr_in sa;
+
 static void read_and_calculate(char *filename, WorkerResults *resultsStruct);
 static void recursive_unfold_and_push(char *, Queue *);
 static void *main_thread_function(void *);
 static void *worker_thread_function(void *);
+static int collector_recieve_from_thread();
+static int thread_send_to_collector();
+static char buf[N];
 
 int main(int argc, char **argv)
 {
-	char buf[N];
+	memset(buf, 0, sizeof(char) * N);
+	sa.sin_addr.s_addr = inet_addr(SOCKET_IP);
+	sa.sin_port = htons(42000);
+	sa.sin_family = AF_INET;
 
 	if (fork() != 0) //* Padre Server
 	{
+		if (collector_recieve_from_thread() == -1)
+		{
+			perror("collector_recieve_from_thread");
+			exit(EXIT_FAILURE);
+		}
+		exit(EXIT_SUCCESS);
+	}
+	else
+	{ /* figlio, client */
 		int n_of_threads = atoi(argv[1]);
 		char *dirname = argv[2];
 		if (argc < 3)
 			return EXIT_FAILURE;
 
-		DIE_IF_ERROR("chdr", chdir(dirname), -1); // Cambaire directory per far funzionare Recursive Unfold
+		chdir(dirname);
+		die_if_error("chdr", -1); // Cambiare directory per far funzionare Recursive Unfold
 
 		pthread_t mainT, threads_array[n_of_threads];
 		ThreadArgs ThreadArgs;
@@ -93,12 +112,6 @@ int main(int argc, char **argv)
 		}
 		queue_destroy(ThreadArgs.queue);
 
-		//*-------------------------
-		exit(EXIT_SUCCESS);
-	}
-	else
-	{ /* figlio, client */
-
 		exit(EXIT_SUCCESS);
 	}
 	free(buf);
@@ -133,8 +146,8 @@ void recursive_unfold_and_push(char *dirPath, Queue *q)
 				push(strdup(entryPath), q);
 		}
 	}
-
-	DIE_IF_ERROR("closedir", closedir(dir), -1);
+	closedir(dir);
+	die_if_error("closedir", -1);
 }
 
 void read_and_calculate(char *filename, WorkerResults *resultsStruct)
@@ -212,13 +225,18 @@ void *worker_thread_function(void *args)
 		char *poppedDatum = (char *)pop(q);
 		if (poppedDatum == NULL || strcmp(poppedDatum, STOP) == 0)
 			break;
-		else{
+		else
+		{
 			read_and_calculate(poppedDatum, &workerResults);
-			
+			if (thread_send_to_collector(workerResults) == -1)
+			{
+				perror("thread_send_to_collector");
+				exit(EXIT_FAILURE);
+			}
 		}
 
-		//printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
-		// printf("[%ld]: %s\n", (long)pthread_self(), poppedDatum);
+		 //printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
+		//  printf("[%ld]: %s\n", (long)pthread_self(), poppedDatum);
 
 		free(poppedDatum);
 	}
@@ -227,3 +245,56 @@ void *worker_thread_function(void *args)
 }
 
 //--------------------------Socket--------------------------------
+
+int collector_recieve_from_thread()
+{
+	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+	if ((bind(server_fd, (struct sockaddr *)&sa, sizeof(sa))) == -1)
+	{
+		perror("bind");
+		exit(EXIT_FAILURE);
+	}
+
+	if ((listen(server_fd, 64)) == -1)
+	{
+		perror("bind");
+		exit(EXIT_FAILURE);
+	}
+
+	int client_fd = 0;
+	while (client_fd == 0)
+	{
+		printf("Accepting...\n");
+		client_fd = accept(server_fd, (struct sockaddr *)&sa, (unsigned int *restrict)sizeof(sa));
+		sleep(1);
+	}
+	printf("Server connected.\n");
+	read(client_fd, buf, sizeof(buf));
+	return EXIT_SUCCESS;
+}
+
+int thread_send_to_collector(WorkerResults workerResults)
+{
+	int server_fd = socket(AF_INET, SOCK_STREAM, 0), c = 2;
+
+	while (connect(server_fd, (struct sockaddr *)&sa, sizeof(sa)) == -1)
+	{
+		if (errno == ENOENT || errno == ECONNREFUSED)
+		{
+			printf("Client connecting...\n");
+			sleep(2);
+		}
+		else
+		{
+			perror("connect");
+			exit(EXIT_FAILURE);
+		}
+		c--;
+		if (c==0) exit(EXIT_FAILURE);
+	}
+	printf("Client connected.\n");
+	//printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
+	write(server_fd, buf, sizeof(buf));
+	return EXIT_SUCCESS;
+}
