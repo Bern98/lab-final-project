@@ -8,8 +8,8 @@
             "program": "${workspaceRoot}/main",
             "cwd": "${workspaceFolder}",
             "args": [
-                "3",
-                "$HOME"
+                "1",
+                "dirs"
             ]
         }
     ]
