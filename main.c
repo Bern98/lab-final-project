@@ -19,6 +19,7 @@
 #define STOP "STOP"
 #define N 5000
 #define SOCKET_IP "127.0.0.1"
+#define MAX_THREADS 128
 
 typedef struct
 {
@@ -26,6 +27,11 @@ typedef struct
 	char *dirname;
 	int n_of_threads;
 } ThreadArgs;
+
+typedef struct
+{
+	int connfd;
+} CollectorThreadArgs;
 
 typedef struct
 {
@@ -42,16 +48,26 @@ static void recursive_unfold_and_push(char *, Queue *);
 static void *main_thread_function(void *);
 static void *worker_thread_function(void *);
 static int collector_recieve_from_thread();
-static int thread_send_to_collector();
+static void *collector_thread_function(void *);
 // static char buf[N];
-static int n_of_workers = 0;
+static int n_of_workers = 0, dat_files_found = 0, dat_files_printed = 0;
 
 int main(int argc, char **argv)
 {
 	sa.sin_addr.s_addr = inet_addr(SOCKET_IP);
+	die_if_error("inet_addr", -1);
 	sa.sin_port = htons(42000);
+	die_if_error("htons", -1);
 	sa.sin_family = AF_INET;
 	n_of_workers = atoi(argv[1]);
+	die_if_error("atoi", -1);
+
+	if (argc < 3)
+	{
+		fflush(stdout);
+		printf("try ./main <number of threads> <dirname>\n");
+		return EXIT_FAILURE;
+	}
 
 	if (fork() != 0) //* Padre Server
 	{
@@ -60,14 +76,15 @@ int main(int argc, char **argv)
 			perror("collector_recieve_from_thread");
 			exit(EXIT_FAILURE);
 		}
+		sleep(1);
+		printf("\nprinted: %d\n", dat_files_printed);
+
 		exit(EXIT_SUCCESS);
 	}
 	else
 	{ /* figlio, client */
 		int n_of_threads = atoi(argv[1]);
 		char *dirname = argv[2];
-		if (argc < 3)
-			return EXIT_FAILURE;
 
 		chdir(dirname);
 		die_if_error("chdr", -1); // Cambiare directory per far funzionare Recursive Unfold
@@ -112,7 +129,10 @@ int main(int argc, char **argv)
 			// printf("thread %d terminato\n", i + 1);
 		}
 		queue_destroy(ThreadArgs.queue);
-
+		free(ThreadArgs.queue);
+		free(ThreadArgs.dirname);
+		sleep(1);
+		printf("\nfound: %d\n", dat_files_found);
 		exit(EXIT_SUCCESS);
 	}
 	return 0;
@@ -143,7 +163,10 @@ void recursive_unfold_and_push(char *dirPath, Queue *q)
 		else
 		{
 			if (entry->d_type == 8 && strcmp(get_file_extension(entry->d_name), ".dat") == 0) // REG
+			{
 				push(strdup(entryPath), q);
+				dat_files_found++;
+			}
 		}
 	}
 	closedir(dir);
@@ -206,8 +229,10 @@ void *main_thread_function(void *args)
 	ThreadArgs *Args = (ThreadArgs *)args;
 	Queue *q = Args->queue;
 	int n_of_threads = Args->n_of_threads;
-
+	printf("inserisco stringhe\n");
 	recursive_unfold_and_push(".", q);
+
+	printf("inserisco terminatori\n");
 	for (int i = 0; i < n_of_threads; i++)
 		push((void *)STOP, q);
 
@@ -219,7 +244,7 @@ void *worker_thread_function(void *args)
 	ThreadArgs *Args = (ThreadArgs *)args;
 	Queue *q = Args->queue;
 	WorkerResults workerResults;
-	// workerResults.filename = malloc(sizeof(char) * 150);
+	memset(&workerResults, 0, sizeof(WorkerResults));
 
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd == -1)
@@ -227,15 +252,13 @@ void *worker_thread_function(void *args)
 		printf("socket creation failed...\n");
 		exit(1);
 	}
-	else
-		printf("Socket successfully created..\n");
 
 	// connect the client socket to server socket
-	if (connect(sockfd, (struct sockaddr *)&sa, sizeof(sa)) != 0)
+	while (connect(sockfd, (struct sockaddr *)&sa, sizeof(sa)) != 0)
 	{
 		if (errno == ENOENT || errno == ECONNREFUSED)
 		{
-			printf("Client connecting...\n");
+			// printf("Client connecting...\n");
 			sleep(2);
 		}
 		else
@@ -250,12 +273,19 @@ void *worker_thread_function(void *args)
 		char *poppedDatum = (char *)pop(q);
 		if (poppedDatum == NULL || strcmp(poppedDatum, STOP) == 0)
 		{
-			workerResults.n = -1;
-			write(sockfd, &workerResults, sizeof(workerResults));
+			memset(&workerResults, 0, sizeof(WorkerResults));
+			strcpy(workerResults.filename, STOP);
+			// printf("\n[%ld]: %s\n", (long)pthread_self(), workerResults.filename);
+			if (write(sockfd, &workerResults, sizeof(workerResults)) == -1)
+			{
+				perror("thread_send_to_collector");
+				exit(EXIT_FAILURE);
+			}
 			break;
 		}
 		else
 		{
+			memset(&workerResults, 0, sizeof(WorkerResults));
 			read_and_calculate(poppedDatum, &workerResults);
 			if (write(sockfd, &workerResults, sizeof(workerResults)) == -1)
 			{
@@ -265,7 +295,7 @@ void *worker_thread_function(void *args)
 		}
 
 		// printf("%d\t%.2f\t%.2f\t%s\n", workerResults.n, workerResults.avg, workerResults.std, workerResults.filename);
-		//  printf("[%ld]: %s\n", (long)pthread_self(), poppedDatum);
+		// printf("\n[%ld]: %s\n", (long)pthread_self(), workerResults.filename);
 
 		free(poppedDatum);
 	}
@@ -279,73 +309,102 @@ void *worker_thread_function(void *args)
 
 int collector_recieve_from_thread()
 {
-	int sockfd, connfd = -1;
+	int sockfd, connfd[MAX_THREADS];
+	pthread_t collector_threads[MAX_THREADS];
+	int active_collector_threads = 0;
+	CollectorThreadArgs thread_args;
+
+	memset(connfd, -1, MAX_THREADS * sizeof(int));
+	memset(collector_threads, 0, MAX_THREADS * sizeof(pthread_t));
 
 	// socket create and verification
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd == -1)
 	{
 		printf("socket creation failed...\n");
-		exit(0);
+		exit(EXIT_FAILURE);
 	}
-	else
-		printf("Socket successfully created..\n");
-
 	// Binding newly created socket to given IP and verification
 	if ((bind(sockfd, (struct sockaddr *)&sa, sizeof(sa))) != 0)
 	{
 		printf("socket bind failed...\n");
-		exit(0);
+		exit(EXIT_FAILURE);
 	}
-	else
-		printf("Socket successfully binded..\n");
 
 	// Now server is ready to listen and verification
 	if ((listen(sockfd, SOMAXCONN)) != 0)
 	{
 		printf("Listen failed...\n");
-		exit(0);
+		exit(EXIT_FAILURE);
 	}
-	else
-		printf("Server listening..\n");
 
-	// Accept the data packet from client and verification
-	while (1)
+	// Accept the data packet from client
+	while (active_collector_threads < n_of_workers)
 	{
-		if ((connfd = accept(sockfd, NULL, NULL)) < 0)
+		if ((connfd[active_collector_threads] = accept(sockfd, NULL, NULL)) < 0)
 		{
-			continue;
+			perror("accept");
+			exit(EXIT_FAILURE);
 		}
-		printf("Server connection accepted\n");
-		break;
+		// printf("Server connection accepted\n");
+		thread_args.connfd = connfd[active_collector_threads];
+
+		// Crea thread collector per gestire le read
+		if (active_collector_threads > MAX_THREADS || pthread_create(&collector_threads[active_collector_threads], NULL, &collector_thread_function, &thread_args) != 0)
+		{
+			perror("collector pthread_create");
+			exit(EXIT_FAILURE);
+		}
+		active_collector_threads++;
 	}
 
-	// Function for chatting between client and server
-	int remaining_workers_active = n_of_workers;
+	for (int i = 0; i < active_collector_threads; i++)
+	{
+		if (pthread_join(collector_threads[i], NULL) != 0)
+		{
+			perror("pthread_join");
+			exit(EXIT_FAILURE);
+		}
+		close(connfd[i]);
+		// printf("thread %d terminato\n", i + 1);
+	}
+	// Chiudere
+	close(sockfd);
+	// printf("Server Exit...\n");
+	return EXIT_SUCCESS;
+}
+
+void *collector_thread_function(void *args)
+{
+	CollectorThreadArgs *Args = (CollectorThreadArgs *)args;
+	int connfd = Args->connfd, time = 0;
+	WorkerResults data;
+
 	for (;;)
 	{
-		WorkerResults data;
-		int chars_read = 0;
-		fflush(stdout);
-
+		memset(&data, 0, sizeof(WorkerResults));
+		
+		int read_bytes = 0;
 		// read the message from client and copy it in buffer
-		chars_read = read(connfd, &data, sizeof(WorkerResults));
-		if (chars_read < 0)
-			return EXIT_FAILURE;
-
-		// if msg contains "STOP"
-		if (data.n < 0)
+		if ((read_bytes = read(connfd, &data, sizeof(WorkerResults))) < 0)
 		{
-			remaining_workers_active--;
-			if (remaining_workers_active == 0)
-				break;
+			perror("read");
+			break;
 		}
-
-		printf("%d\t%lf\t%lf\t%s\n", data.n, data.avg, data.std, data.filename);
+		// if msg contains STOP signal which is -1
+		if (strcmp(data.filename, STOP) == 0 || read_bytes == 0)
+		{
+			printf("%d\t%lf\t%lf\t%s\n", data.n, data.avg, data.std, data.filename);
+			break;
+		}
+		else
+		{
+			printf("%d\t%lf\t%lf\t%s\n", data.n, data.avg, data.std, data.filename);
+			fflush(stdout);
+			time++;
+			dat_files_printed++;
+		}
 	}
-
-	// After chatting close the socket
-	close(sockfd);
-	printf("Server Exit...\n");
-	return EXIT_SUCCESS;
+	printf("[%ld] printed %d.\n", pthread_self(), time);
+	pthread_exit(NULL);
 }
