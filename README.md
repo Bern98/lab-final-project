@@ -1,7 +1,6 @@
 # lab-final-project
 
 ## Progettino Lab2 Corso A
-Valutazione in itinere
 Processi, thread, socket, segnali
 Si consideri una cartella con al suo interno files ed altre cartelle contenenti, tra gli altri, file con estensione ".dat". Tali file sono file testuali che contengono numeri interi o decimali, uno per riga, eventualmente separati da righe vuote. I numeri possono essere preceduti o seguiti da spazi vuoti e/o caratteri di tabulazione. Per ogni file ".dat" vogliamo calcolare la media aritmetica e la deviazione standard dei numeri in esso contenuti.
 Supponendo che la directory corrente '.' contenga i seguenti file (-) e directory (d):
