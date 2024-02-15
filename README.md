@@ -1,5 +1,5 @@
 # Porgetto di Laboratorio II
-#### Processi, thread, socket, segnali<br>
+### Processi, thread, socket, segnali<br>
 Si consideri una cartella con al suo interno files ed altre cartelle contenenti, tra gli altri, file con estensione ".dat". Tali file sono file testuali che contengono numeri interi o decimali, uno per riga, eventualmente separati da righe vuote. I numeri possono essere preceduti o seguiti da spazi vuoti e/o caratteri di tabulazione. Per ogni file ".dat" vogliamo calcolare la media aritmetica e la deviazione standard dei numeri in esso contenuti.
 Supponendo che la directory corrente '.' contenga i seguenti file (-) e directory (d):<br>
 - ./prova1.dat
@@ -18,7 +18,7 @@ d ./provadir/provadir2/provadir3
 - ./provadir/provadir2/provadir3/provadir3-3.dat
 <br>
 Vogliamo ottenere un output tabellare come il seguente:<br>
-**n avg std file**
+#### n avg std file
 3 3.00 .81 ./prova1.dat<br>
 7 30.71 29.81 ./provadir/provadir2/provadir3/provadir3-3.dat<br>
 7 30.71 29.81 ./provadir/provadir2/provadir2-1.dat<br>
